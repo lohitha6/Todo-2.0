@@ -2,24 +2,11 @@ pipeline {
     agent any
     
     environment {
-        DOCKER_REPO = 'your-dockerhub-username/your-app'
-        DOCKER_CREDS = credentials('dockerhub-credentials')
-        KUBE_CONFIG = credentials('kubeconfig')
-        HELM_REPO = 'your-helm-repo'
-    }
-    
-    triggers {
-        githubPush()
+        DOCKER_REPO = 'lohitha12100706/flask-todo-app'
     }
     
     stages {
         stage('Checkout') {
-            when {
-                anyOf {
-                    branch 'main'
-                    changeRequest target: 'main'
-                }
-            }
             steps {
                 checkout scm
                 script {
@@ -30,7 +17,12 @@ pipeline {
         }
         
         stage('Docker Build') {
-            when { branch 'main' }
+            when { 
+                anyOf {
+                    branch 'main'
+                    changeRequest target: 'main'
+                }
+            }
             steps {
                 script {
                     def image = docker.build("${DOCKER_REPO}:${IMAGE_TAG}")
@@ -56,9 +48,7 @@ pipeline {
             steps {
                 withKubeConfig([credentialsId: 'kubeconfig']) {
                     sh """
-                        helm repo add myrepo ${HELM_REPO}
-                        helm repo update
-                        helm upgrade --install myapp myrepo/mychart \
+                        helm upgrade --install flask-todo-app ./helm-chart \
                             --set image.repository=${DOCKER_REPO} \
                             --set image.tag=${IMAGE_TAG} \
                             --namespace production \
@@ -67,52 +57,15 @@ pipeline {
                 }
             }
         }
-        
-        stage('Update Jira') {
-            when { branch 'main' }
-            steps {
-                script {
-                    def issueKey = extractJiraIssue()
-                    if (issueKey) {
-                        jiraAddComment(
-                            idOrKey: issueKey,
-                            comment: "✅ Build ${BUILD_NUMBER} deployed successfully\\nDocker: ${DOCKER_REPO}:${IMAGE_TAG}\\nCommit: ${GIT_COMMIT}"
-                        )
-                    }
-                }
-            }
-        }
     }
     
     post {
         success {
-            script {
-                def issueKey = extractJiraIssue()
-                if (issueKey) {
-                    jiraTransitionIssue(
-                        idOrKey: issueKey,
-                        input: [transition: [id: '31']]
-                    )
-                }
-            }
+            echo "✅ Build ${BUILD_NUMBER} completed successfully"
+            echo "Docker: ${DOCKER_REPO}:${IMAGE_TAG}"
         }
         failure {
-            script {
-                def issueKey = extractJiraIssue()
-                if (issueKey) {
-                    jiraAddComment(
-                        idOrKey: issueKey,
-                        comment: "❌ Build ${BUILD_NUMBER} failed. Check Jenkins logs."
-                    )
-                }
-            }
+            echo "❌ Build ${BUILD_NUMBER} failed"
         }
     }
 }
-
-def extractJiraIssue() {
-    def commitMsg = sh(returnStdout: true, script: 'git log -1 --pretty=%B').trim()
-    def matcher = commitMsg =~ /([A-Z]+-\d+)/
-    return matcher ? matcher[0][1] : null
-}
-
