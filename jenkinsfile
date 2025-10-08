@@ -1,0 +1,118 @@
+pipeline {
+    agent any
+    
+    environment {
+        DOCKER_REPO = 'your-dockerhub-username/your-app'
+        DOCKER_CREDS = credentials('dockerhub-credentials')
+        KUBE_CONFIG = credentials('kubeconfig')
+        HELM_REPO = 'your-helm-repo'
+    }
+    
+    triggers {
+        githubPush()
+    }
+    
+    stages {
+        stage('Checkout') {
+            when {
+                anyOf {
+                    branch 'main'
+                    changeRequest target: 'main'
+                }
+            }
+            steps {
+                checkout scm
+                script {
+                    env.IMAGE_TAG = "${BUILD_NUMBER}"
+                    env.GIT_COMMIT = sh(returnStdout: true, script: 'git rev-parse --short HEAD').trim()
+                }
+            }
+        }
+        
+        stage('Docker Build') {
+            when { branch 'main' }
+            steps {
+                script {
+                    def image = docker.build("${DOCKER_REPO}:${IMAGE_TAG}")
+                    docker.build("${DOCKER_REPO}:latest")
+                }
+            }
+        }
+        
+        stage('Push to Docker Hub') {
+            when { branch 'main' }
+            steps {
+                script {
+                    docker.withRegistry('', 'dockerhub-credentials') {
+                        docker.image("${DOCKER_REPO}:${IMAGE_TAG}").push()
+                        docker.image("${DOCKER_REPO}:latest").push()
+                    }
+                }
+            }
+        }
+        
+        stage('Deploy to Kubernetes') {
+            when { branch 'main' }
+            steps {
+                withKubeConfig([credentialsId: 'kubeconfig']) {
+                    sh """
+                        helm repo add myrepo ${HELM_REPO}
+                        helm repo update
+                        helm upgrade --install myapp myrepo/mychart \
+                            --set image.repository=${DOCKER_REPO} \
+                            --set image.tag=${IMAGE_TAG} \
+                            --namespace production \
+                            --create-namespace
+                    """
+                }
+            }
+        }
+        
+        stage('Update Jira') {
+            when { branch 'main' }
+            steps {
+                script {
+                    def issueKey = extractJiraIssue()
+                    if (issueKey) {
+                        jiraAddComment(
+                            idOrKey: issueKey,
+                            comment: "✅ Build ${BUILD_NUMBER} deployed successfully\\nDocker: ${DOCKER_REPO}:${IMAGE_TAG}\\nCommit: ${GIT_COMMIT}"
+                        )
+                    }
+                }
+            }
+        }
+    }
+    
+    post {
+        success {
+            script {
+                def issueKey = extractJiraIssue()
+                if (issueKey) {
+                    jiraTransitionIssue(
+                        idOrKey: issueKey,
+                        input: [transition: [id: '31']]
+                    )
+                }
+            }
+        }
+        failure {
+            script {
+                def issueKey = extractJiraIssue()
+                if (issueKey) {
+                    jiraAddComment(
+                        idOrKey: issueKey,
+                        comment: "❌ Build ${BUILD_NUMBER} failed. Check Jenkins logs."
+                    )
+                }
+            }
+        }
+    }
+}
+
+def extractJiraIssue() {
+    def commitMsg = sh(returnStdout: true, script: 'git log -1 --pretty=%B').trim()
+    def matcher = commitMsg =~ /([A-Z]+-\d+)/
+    return matcher ? matcher[0][1] : null
+}
+
