@@ -24,12 +24,6 @@ pipeline {
         }
         
         stage('Docker Build') {
-            when { 
-                anyOf {
-                    branch 'main'
-                    changeRequest target: 'main'
-                }
-            }
             when { branch 'main' }
             steps {
                 script {
@@ -77,5 +71,4 @@ pipeline {
             echo "❌ Build ${BUILD_NUMBER} failed"
         }
     }
-}
 }
