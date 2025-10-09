@@ -3,10 +3,17 @@ pipeline {
     
     environment {
         DOCKER_REPO = 'lohitha12100706/flask-todo-app'
+        DOCKER_CREDS = credentials('dockerhub-credentials')
+        KUBE_CONFIG = credentials('kubeconfig')
+    }
+    
+    triggers {
+        pollSCM('H/5 * * * *')
     }
     
     stages {
         stage('Checkout') {
+            when { branch 'main' }
             steps {
                 checkout scm
                 script {
@@ -23,6 +30,7 @@ pipeline {
                     changeRequest target: 'main'
                 }
             }
+            when { branch 'main' }
             steps {
                 script {
                     def image = docker.build("${DOCKER_REPO}:${IMAGE_TAG}")
@@ -62,10 +70,12 @@ pipeline {
     post {
         success {
             echo "✅ Build ${BUILD_NUMBER} completed successfully"
+            echo "✅ Build ${BUILD_NUMBER} deployed successfully"
             echo "Docker: ${DOCKER_REPO}:${IMAGE_TAG}"
         }
         failure {
             echo "❌ Build ${BUILD_NUMBER} failed"
         }
     }
+}
 }
