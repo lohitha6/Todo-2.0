@@ -5,6 +5,7 @@ pipeline {
         DOCKER_REPO = 'lohitha12100706/flask-todo-app'
         DOCKER_CREDS = credentials('dockerhub-credentials')
         KUBE_CONFIG = credentials('kubeconfig')
+        IMAGE_TAG = "${BUILD_NUMBER}"
     }
     
     triggers {
@@ -17,7 +18,6 @@ pipeline {
             steps {
                 checkout scm
                 script {
-                    env.IMAGE_TAG = "${BUILD_NUMBER}"
                     env.GIT_COMMIT = sh(returnStdout: true, script: 'git rev-parse --short HEAD').trim()
                 }
             }
