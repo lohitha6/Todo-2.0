@@ -1,62 +1,73 @@
 pipeline {
-    agent { label 'docker-node' }
+    agent any
     
     environment {
-        DOCKER_IMAGE = "todo-app"
-        DOCKER_TAG = "${env.BUILD_NUMBER}"
+        DOCKER_REPO = 'lohitha12100706/flask-todo-app'
+        DOCKER_CREDS = credentials('dockerhub-credentials')
+        KUBE_CONFIG = credentials('kubeconfig')
+    }
+    
+    triggers {
+        pollSCM('H/5 * * * *')
     }
     
     stages {
         stage('Checkout') {
+            when { branch 'main' }
             steps {
-                echo 'Checking out code...'
                 checkout scm
+                script {
+                    env.IMAGE_TAG = "${BUILD_NUMBER}"
+                    env.GIT_COMMIT = sh(returnStdout: true, script: 'git rev-parse --short HEAD').trim()
+                }
             }
         }
         
-        stage('Build Docker Image') {
+        stage('Docker Build') {
+            when { branch 'main' }
             steps {
                 script {
-                    echo 'Building Docker image...'
-                    def image = docker.build("${DOCKER_IMAGE}:${DOCKER_TAG}")
+                    def image = docker.build("${DOCKER_REPO}:${IMAGE_TAG}")
+                    docker.build("${DOCKER_REPO}:latest")
                 }
             }
         }
         
-        stage('Test') {
+        stage('Push to Docker Hub') {
+            when { branch 'main' }
             steps {
-                echo 'Running tests...'
-                sh 'echo "Tests passed"'
+                script {
+                    docker.withRegistry('', 'dockerhub-credentials') {
+                        docker.image("${DOCKER_REPO}:${IMAGE_TAG}").push()
+                        docker.image("${DOCKER_REPO}:latest").push()
+                    }
+                }
             }
         }
         
-        stage('Deploy') {
-            when {
-                anyOf {
-                    branch 'main'
-                    branch 'feature/DOC-*'
-                }
-            }
+        stage('Deploy to Kubernetes') {
+            when { branch 'main' }
             steps {
-                echo 'Deploying application...'
-                sh """
-                    docker stop todo-app-container || true
-                    docker rm todo-app-container || true
-                    docker run -d --name todo-app-container -p 3000:3000 ${DOCKER_IMAGE}:${DOCKER_TAG}
-                """
+                withKubeConfig([credentialsId: 'kubeconfig']) {
+                    sh """
+                        helm upgrade --install flask-todo-app ./helm-chart \
+                            --set image.repository=${DOCKER_REPO} \
+                            --set image.tag=${IMAGE_TAG} \
+                            --namespace production \
+                            --create-namespace
+                    """
+                }
             }
         }
     }
     
     post {
         success {
-            echo 'Pipeline succeeded!'
+            echo "✅ Build ${BUILD_NUMBER} deployed successfully"
+            echo "Docker: ${DOCKER_REPO}:${IMAGE_TAG}"
         }
         failure {
-            echo 'Pipeline failed!'
-        }
-        always {
-            echo 'Pipeline completed.'
+            echo "❌ Build ${BUILD_NUMBER} failed"
         }
     }
 }
