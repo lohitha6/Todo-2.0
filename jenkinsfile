@@ -45,13 +45,7 @@ pipeline {
         }
 
 
-       stage('SonarCloud Analysis') {
-  steps {
-    withSonarQubeEnv('SonarCloud') {
-      sh 'mvn sonar:sonar -Dsonar.projectKey=Todo-2.0 -Dsonar.organization=lohitha6 -Dsonar.login=af7fa01eab721ed77b75def75062db59f0cea714'
-    }
-  }
-}
+     
         
         stage('Docker Build') {
             when { branch 'main' }
