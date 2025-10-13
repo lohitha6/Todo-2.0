@@ -43,7 +43,7 @@ pipeline {
                           -Dsonar.organization=lohitha6 \
                           -Dsonar.sources=. \
                           -Dsonar.host.url=https://sonarcloud.io \
-                          -Dsonar.login=af7fa01eab721ed77b75def75062db59f0cea714
+                          -Dsonar.login=$SONAR_TOKEN
                     '''
                 }
             }
