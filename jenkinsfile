@@ -73,7 +73,7 @@ pipeline {
                         helm upgrade --install flask-todo-app ./helm-chart \
                             --set image.repository=${DOCKER_REPO} \
                             --set image.tag=${IMAGE_TAG} \
-                            --namespace production \
+                            --namespace monitoring \
                             --create-namespace \
             
                     """
@@ -89,7 +89,7 @@ pipeline {
                         helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
                         helm repo update
                         helm upgrade --install prometheus prometheus-community/kube-prometheus-stack \
-                            --namespace production \
+                            --namespace monitoring \
                             --create-namespace \
                             --set prometheus.prometheusSpec.serviceMonitorSelectorNilUsesHelmValues=false
                     """
@@ -105,7 +105,7 @@ pipeline {
                         helm repo add grafana https://grafana.github.io/helm-charts
                         helm repo update
                         helm upgrade --install grafana grafana/grafana \
-                            --namespace production \
+                            --namespace monitoring \
                             --set adminPassword=admin123 \
                             --set service.type=LoadBalancer
                     """
