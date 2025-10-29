@@ -74,7 +74,8 @@ pipeline {
                             --set image.repository=${DOCKER_REPO} \
                             --set image.tag=${IMAGE_TAG} \
                             --namespace production \
-                            --create-namespace
+                            --create-namespace \
+                            --kubeconfig /home/ylohith/.kube/config
                     """
                 }
             }
@@ -90,6 +91,7 @@ pipeline {
                         helm upgrade --install prometheus prometheus-community/kube-prometheus-stack \
                             --namespace production \
                             --create-namespace \
+                            --kubeconfig /home/ylohith/.kube/config
                             --set prometheus.prometheusSpec.serviceMonitorSelectorNilUsesHelmValues=false
                     """
                 }
@@ -105,6 +107,7 @@ pipeline {
                         helm repo update
                         helm upgrade --install grafana grafana/grafana \
                             --namespace production \
+                            --kubeconfig /home/ylohith/.kube/config
                             --set adminPassword=admin123 \
                             --set service.type=LoadBalancer
                     """
