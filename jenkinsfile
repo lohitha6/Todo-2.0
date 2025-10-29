@@ -79,6 +79,38 @@ pipeline {
                 }
             }
         }
+        
+        stage('Deploy Prometheus') {
+            when { branch 'main' }
+            steps {
+                withKubeConfig([credentialsId: 'kubeconfig']) {
+                    sh """
+                        helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+                        helm repo update
+                        helm upgrade --install prometheus prometheus-community/kube-prometheus-stack \
+                            --namespace monitoring \
+                            --create-namespace \
+                            --set prometheus.prometheusSpec.serviceMonitorSelectorNilUsesHelmValues=false
+                    """
+                }
+            }
+        }
+        
+        stage('Deploy Grafana') {
+            when { branch 'main' }
+            steps {
+                withKubeConfig([credentialsId: 'kubeconfig']) {
+                    sh """
+                        helm repo add grafana https://grafana.github.io/helm-charts
+                        helm repo update
+                        helm upgrade --install grafana grafana/grafana \
+                            --namespace monitoring \
+                            --set adminPassword=admin123 \
+                            --set service.type=LoadBalancer
+                    """
+                }
+            }
+        }
     }
     
     post {
