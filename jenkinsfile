@@ -97,21 +97,7 @@ pipeline {
             }
         }
         
-        stage('Deploy Grafana') {
-            when { branch 'main' }
-            steps {
-                withKubeConfig([credentialsId: 'kubeconfig']) {
-                    sh """
-                        helm repo add grafana https://grafana.github.io/helm-charts
-                        helm repo update
-                        helm upgrade --install grafana grafana/grafana \
-                            --namespace monitoring \
-                            --set adminPassword=admin123 \
-                            --set service.type=LoadBalancer
-                    """
-                }
-            }
-        }
+        
         
         stage('Configure Monitoring') {
             when { branch 'main' }
@@ -123,7 +109,7 @@ apiVersion: monitoring.coreos.com/v1
 kind: ServiceMonitor
 metadata:
   name: flask-todo-app-monitor
-  namespace: production
+  namespace: monitoring
   labels:
     app: flask-todo-app
 spec:
